@@ -5,11 +5,14 @@ var controls = new THREE.OrbitControls(camera, renderer.domElement);
 var clock = new THREE.Clock(), text = document.createElement("div");
 controls.enableKeys = false;
 
+var speed = 1.0;
 var mov = 5;
 var delta = 1 / mov;
 var tetha = 0.0, edgeSize = 20, padding = 0.15;
 var cubeSize = edgeSize + (edgeSize - 1) * padding;
 var halfCubeSize = cubeSize/2;
+var rangeslider = document.getElementById("sliderRange"); 
+var output = document.getElementById("speedValue");
 
 var BACKGROUND_COLOR = 0x6200ee, BODY_COLOR = 0x388e3c, HEAD_COLOR = 0x004D40, score = 0;
 
@@ -17,11 +20,14 @@ var lightPos = [new THREE.Vector3(0,50,20), new THREE.Vector3(0,15,-20), new THR
 
 var end = false, keysQueue = [];
 
-var snake = [], apple;
+var snake = [], apple, blackHole1, blackHole2;
 var cube = new THREE.BoxGeometry( 1, 1, 1 );
+var sphere = new THREE.SphereGeometry (1, 32, 32);
 var gameCube = new THREE.BoxGeometry( cubeSize, cubeSize, cubeSize );
+var gameSphere = new THREE.SphereGeometry(1, 1, 1);
 var direction = new THREE.Vector3(1, 0, 0);
-
+var blackHole1Pos = new THREE.Vector3(0.25, 0.25, 0.25);
+var blackHole2Pos = new THREE.Vector3(0.75, 0.75, 0.75);
 
 scene.background = new THREE.Color( BACKGROUND_COLOR );
 
@@ -46,8 +52,12 @@ function init(){
         snake.push(new Cube( new THREE.Vector3((i + i * padding) -halfCubeSize + 0.5 , 0.5 + padding / 2, 0.5 + padding / 2 ), snakeCubeMaterial, scene));
     }
 
-    var appleCubeMaterial = new THREE.MeshPhongMaterial( { color: 0xc62828} );
-    apple = new Cube(spawnAppleVector(), appleCubeMaterial, scene);
+    var blackHoleMaterial = new THREE.MeshPhongMaterial( { color:0x000000 } );
+    blackHole1 = new Sphere(blackHole1Pos, blackHoleMaterial, scene);
+    blackHole2 = new Sphere(blackHole2Pos, blackHoleMaterial, scene);
+
+    var appleMaterial = new THREE.MeshPhongMaterial( { color: 0xc62828} );
+    apple = new Sphere(spawnAppleVector(), appleMaterial, scene);
     var edgesMaterial = new THREE.LineBasicMaterial( { color: 0xffffff } );
     new Cube(new THREE.Vector3(0,0,0), edgesMaterial, scene, gameCube, true).setPosition(0,0,0);
 
@@ -58,6 +68,8 @@ function init(){
     text.style.top = 20 + "px";
     text.style.left = 20 + "px";
     text.style.fontSize = 50 + "px";
+     
+    output.innerHTML = rangeslider.value;
 
     document.body.appendChild(text);
 
@@ -66,10 +78,11 @@ function init(){
 }
 
 function restart(){
-    while(snake.length > 5) scene.remove(snake.shift().mesh);
+    while(snake.length > 5) 
+        scene.remove(snake.shift().mesh);
 
     for(var i = 0; i < snake.length; i++){
-        snake[i].setPosition((i + i * padding) -halfCubeSize + 0.5 , 0.5 + padding / 2, 0.5 + padding / 2 );
+        snake[i].setPosition((i + i * padding) - halfCubeSize + 0.5 , 0.5 + padding / 2, 0.5 + padding / 2 );
     }
     end = false;
     direction = new THREE.Vector3(1,0,0);
@@ -78,7 +91,6 @@ function restart(){
 }
 
 document.onload = init();
-
 
 function spawnAppleVector(){
     var x = randInRange(0, edgeSize - 1), y =  randInRange(0, edgeSize - 1), z =  randInRange(0, edgeSize - 1);
@@ -103,14 +115,37 @@ function Cube(vec, material, scene, geometry, renderWireframe){
     };
 }   
 
+function Sphere(vec, material, scene, geometry, renderWireframe){
+    this.geometry = typeof geometry === 'undefined' ? sphere : geometry;
+    this.mesh = new THREE.Mesh(this.geometry, material);
+
+    if(typeof renderWireframe === 'undefined' || !renderWireframe){
+        this.mesh.position.set(vec.x, vec.y, vec.z);
+        scene.add(this.mesh);
+    }
+    else {
+        var edges = new THREE.EdgesGeometry( this.mesh.geometry );
+        scene.add(new THREE.LineSegments( edges, material ));
+    }
+
+    this.setPosition = function(vec){
+        this.mesh.position.set(vec.x, vec.y, vec.z);
+    };
+}
+
 function randInRange(a, b){
     return a + Math.floor((b - a) * Math.random());
 }
 
 function render(){
     requestAnimationFrame(render);
-            
-    tetha += clock.getDelta();
+    
+    rangeslider.oninput = function(){ 
+        output.innerHTML = this.value;  
+    } 
+
+    speed = rangeslider.value;
+    tetha += clock.getDelta() * speed/5;
             
     if(tetha > delta){
         var tail = snake.shift();
@@ -136,12 +171,12 @@ function render(){
         if(end) {
             restart();
         }
+
         if(head.mesh.position.distanceTo(apple.mesh.position) < 1){
             apple.setPosition(spawnAppleVector());
             text.innerHTML = "Score: " + (++score);
 
             snake.unshift(new Cube( new THREE.Vector3(snake[0].mesh.position.x, snake[0].mesh.position.y, snake[0].mesh.position.z), new THREE.MeshPhongMaterial( { color: 0x388e3c} ), scene));
-
         }
 
         if(head.mesh.position.x < -halfCubeSize){
@@ -161,6 +196,11 @@ function render(){
         }
         else if(head.mesh.position.z > halfCubeSize){
             head.mesh.position.z = -halfCubeSize + 0.5;
+        }
+
+        if(head.mesh.position == blackHole1Pos)
+        {
+            head.mesh.position = blackHole2Pos;
         }
 
         tetha = 0;

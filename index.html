@@ -3,11 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>3D Snake</title>
+    <style>
+        .rangeslider{ 
+            width: 50%; 
+            text-align: right;
+        }
+    </style>
 </head>
 <body>
     <script src="js/three.js"></script>
     <script src="js/OrbitControls.js"></script>
+    <!--Speed Slider-->
+    
+    <div class="rangeslider">  
+        <input type="range" min="1" max="100" value="10" class="myslider" id="sliderRange"> 
+        <h2>Speed <span id="speedValue"></span></h2> 
+    </div>
+
     <script src="main.js"></script>
+
+    <script>
+    //Speed Range Slider       
+    </script>
 </body>
 </html>
