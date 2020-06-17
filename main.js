@@ -1,233 +1,208 @@
-var WIDTH = window.innerWidth, HEIGHT = window.innerHeight;
-var aspectRatio = WIDTH / HEIGHT;
-var renderer = new THREE.WebGLRenderer(), camera = new THREE.PerspectiveCamera(45, aspectRatio, 0.1, 1000), scene = new THREE.Scene();
-var controls = new THREE.OrbitControls(camera, renderer.domElement);
-var clock = new THREE.Clock(), text = document.createElement("div");
-controls.enableKeys = false;
+let scene, camera, renderer, width = window.innerWidth, height = window.innerHeight, controls, clock = new THREE.Clock()
 
-var speed = 1.0;
-var mov = 5;
-var delta = 1 / mov;
-var tetha = 0.0, edgeSize = 20, padding = 0.15;
-var cubeSize = edgeSize + (edgeSize - 1) * padding;
-var halfCubeSize = cubeSize/2;
-var rangeslider = document.getElementById("sliderRange"); 
-var output = document.getElementById("speedValue");
+const snake = [], cube = new THREE.BoxGeometry(1, 1, 1)
+const speedVal = document.getElementById('speed'), sliderVal = document.getElementById('slider')
 
-var BACKGROUND_COLOR = 0x6200ee, BODY_COLOR = 0x388e3c, HEAD_COLOR = 0x004D40, score = 0;
+console.log(sliderVal.value)
 
-var lightPos = [new THREE.Vector3(0,50,20), new THREE.Vector3(0,15,-20), new THREE.Vector3(-20,15,20), new THREE.Vector3(20,-15,0)];
+let freq, theta = 0.0, BodyColor = 0xffe83c, HeadColor = 0x0000FF
 
-var end = false, keysQueue = [];
+const lightPos = [new THREE.Vector3(0, 50, 20), new THREE.Vector3(0, 15, -20), new THREE.Vector3(-20, 15, 20), new THREE.Vector3(20, -15, 0)];
+const edgeSize = 25, cubeSize = 26, halfCube = cubeSize / 2
 
-var snake = [], apple, blackHole1, blackHole2;
-var cube = new THREE.BoxGeometry( 1, 1, 1 );
-var sphere = new THREE.SphereGeometry (1, 32, 32);
-var gameCube = new THREE.BoxGeometry( cubeSize, cubeSize, cubeSize );
-var gameSphere = new THREE.SphereGeometry(1, 1, 1);
-var direction = new THREE.Vector3(1, 0, 0);
-var blackHole1Pos = new THREE.Vector3(0.25, 0.25, 0.25);
-var blackHole2Pos = new THREE.Vector3(0.75, 0.75, 0.75);
+let direction = new THREE.Vector3(1, 0, 0), finish = false, keys = [], score = 0
 
-scene.background = new THREE.Color( BACKGROUND_COLOR );
+const gameCube = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize)
 
-camera.position.z = 30;
-camera.position.y = 30;
+let scoreDiv = document.createElement('div')
 
-cube.center();
+scoreDiv.innerHTML = `Score: ${score}`
 
-function init(){
+let black1, black2
 
-    renderer.setSize(WIDTH, HEIGHT);
-    document.body.appendChild(renderer.domElement);
+const init = () => {
+    scene = new THREE.Scene()
 
-    lightPos.forEach(function(v){
-        var light = new THREE.PointLight(0xffffff, 1, 100);
-        light.position.set(v.x, v.y, v.z);
+    scene.background = new THREE.Color(0x81eef1)
+    aspectRatio = width / height
+
+    camera = new THREE.PerspectiveCamera(45, aspectRatio, 0.1, 1000)
+    cube.center()
+    camera.position.set(0, 40, 40)
+
+    renderer = new THREE.WebGLRenderer({ antialias: true })
+    renderer.setSize(width, height)
+    document.body.appendChild(renderer.domElement)
+
+    lightPos.forEach(v => {
+        const light = new THREE.PointLight(0xffffff, 1, 100);
+        light.position.set(v.x, v.y, v.z)
         scene.add(light)
-    });
+    })
 
-    for(var i = 0; i < 5; i++){
-        var snakeCubeMaterial = new THREE.MeshPhongMaterial( { color: (i == 4) ? HEAD_COLOR : BODY_COLOR} );
-        snake.push(new Cube( new THREE.Vector3((i + i * padding) -halfCubeSize + 0.5 , 0.5 + padding / 2, 0.5 + padding / 2 ), snakeCubeMaterial, scene));
+    for (let i = 0; i < 5; i++) {
+        let snakeCubeMaterial = new THREE.MeshPhongMaterial({ color: (i == 4) ? HeadColor : BodyColor })
+        snake.push(new createCube(cube, snakeCubeMaterial, new THREE.Vector3(i - halfCube + 0.5, 0.5, 0.5), scene, false))
     }
 
-    var blackHoleMaterial = new THREE.MeshPhongMaterial( { color:0x000000 } );
-    blackHole1 = new Sphere(blackHole1Pos, blackHoleMaterial, scene);
-    blackHole2 = new Sphere(blackHole2Pos, blackHoleMaterial, scene);
+    food = new createSphere(new THREE.SphereGeometry(.5, 32, 32), new THREE.MeshPhongMaterial({ color: 0xc62828 }), foodLocation(), scene)
 
-    var appleMaterial = new THREE.MeshPhongMaterial( { color: 0xc62828} );
-    apple = new Sphere(spawnAppleVector(), appleMaterial, scene);
-    var edgesMaterial = new THREE.LineBasicMaterial( { color: 0xffffff } );
-    new Cube(new THREE.Vector3(0,0,0), edgesMaterial, scene, gameCube, true).setPosition(0,0,0);
+    black1 = new createCube(cube, new THREE.LineBasicMaterial({ color: 0x000000 }), new THREE.Vector3(1.5, 1.5, 1.5), scene, false)
+    black2 = new createCube(cube, new THREE.LineBasicMaterial({ color: 0x000000 }), new THREE.Vector3(7.5, 7.5, 7.5), scene, false)
 
-    text.style.position = "absolute";
-    text.style.width = 200;
-    text.style.height = 100;
-    text.innerHTML = "Score: " + score;
-    text.style.top = 20 + "px";
-    text.style.left = 20 + "px";
-    text.style.fontSize = 50 + "px";
-     
-    output.innerHTML = rangeslider.value;
+    new createCube(gameCube, new THREE.LineBasicMaterial({ color: 0xffffff }), new THREE.Vector3(0, 0, 0), scene, true).setPosition(0, 0, 0)
 
-    document.body.appendChild(text);
+    controls = new THREE.OrbitControls(camera, renderer.domElement)
 
-    clock.startTime = 0.0;
-    render();
+    controls.enableKeys = false;
+    scoreDiv.style.position = "absolute";
+    scoreDiv.style.width = 200;
+    scoreDiv.style.height = 100;
+    scoreDiv.style.top = `${20}px`;
+    scoreDiv.style.left = `${20}px`;
+    scoreDiv.style.fontSize = `${50}px`;
+    document.body.appendChild(scoreDiv)
 }
 
-function restart(){
-    while(snake.length > 5) 
-        scene.remove(snake.shift().mesh);
-
-    for(var i = 0; i < snake.length; i++){
-        snake[i].setPosition((i + i * padding) - halfCubeSize + 0.5 , 0.5 + padding / 2, 0.5 + padding / 2 );
+const createSphere = function (geometry, material, vector, scene) {
+    this.mesh = new THREE.Mesh(geometry, material)
+    scene.add(this.mesh)
+    this.mesh.position.set(vector.x, vector.y, vector.z)
+    this.setPosition = vector => {
+        this.mesh.position.set(vector.x, vector.y, vector.z)
     }
-    end = false;
-    direction = new THREE.Vector3(1,0,0);
-    text.innerHTML = "Score: " + 0;
-    score = 0;
 }
 
-document.onload = init();
-
-function spawnAppleVector(){
-    var x = randInRange(0, edgeSize - 1), y =  randInRange(0, edgeSize - 1), z =  randInRange(0, edgeSize - 1);
-    return new THREE.Vector3(x + x*padding -halfCubeSize + 0.5, y + y * padding -halfCubeSize + 0.5, z + z * padding -halfCubeSize + 0.5);
-}
-
-function Cube(vec, material, scene, geometry, renderWireframe){
-    this.geometry = typeof geometry === 'undefined' ? cube : geometry;
-    this.mesh = new THREE.Mesh(this.geometry, material);
-
-    if(typeof renderWireframe === 'undefined' || !renderWireframe){
-        this.mesh.position.set(vec.x, vec.y, vec.z);
-        scene.add(this.mesh);
+const createCube = function (geometry, material, vector, scene, wireFrame = true) {
+    this.mesh = new THREE.Mesh(geometry, material)
+    if (!wireFrame) {
+        this.mesh.position.set(vector.x, vector.y, vector.z)
+        scene.add(this.mesh)
     }
     else {
-        var edges = new THREE.EdgesGeometry( this.mesh.geometry );
-        scene.add(new THREE.LineSegments( edges, material ));
+        scene.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), material));
     }
-
-    this.setPosition = function(vec){
-        this.mesh.position.set(vec.x, vec.y, vec.z);
-    };
-}   
-
-function Sphere(vec, material, scene, geometry, renderWireframe){
-    this.geometry = typeof geometry === 'undefined' ? sphere : geometry;
-    this.mesh = new THREE.Mesh(this.geometry, material);
-
-    if(typeof renderWireframe === 'undefined' || !renderWireframe){
-        this.mesh.position.set(vec.x, vec.y, vec.z);
-        scene.add(this.mesh);
+    this.setPosition = (vector) => {
+        this.mesh.position.set(vector.x, vector.y, vector.z)
     }
-    else {
-        var edges = new THREE.EdgesGeometry( this.mesh.geometry );
-        scene.add(new THREE.LineSegments( edges, material ));
-    }
-
-    this.setPosition = function(vec){
-        this.mesh.position.set(vec.x, vec.y, vec.z);
-    };
 }
 
-function randInRange(a, b){
-    return a + Math.floor((b - a) * Math.random());
+const restart = () => {
+    while (snake.length > 5)
+        scene.remove(snake.shift().mesh)
+    for (let i = 0; i < snake.length; i++) {
+        snake[i].setPosition(i - halfCube + 0.5, 0.5, 0.5)
+    }
+    score = 0
+    scoreDiv.innerHTML = `Score: ${score}`
+    finish = false;
+    direction = new THREE.Vector3(0, 0, 1)
 }
 
-function render(){
-    requestAnimationFrame(render);
-    
-    rangeslider.oninput = function(){ 
-        output.innerHTML = this.value;  
-    } 
+const foodLocation = () => {
+    const x = 0 + Math.floor((edgeSize - 0) * Math.random())
+    const y = 0 + Math.floor((edgeSize - 0) * Math.random())
+    const z = 0 + Math.floor((edgeSize - 0) * Math.random())
+    return new THREE.Vector3(x - halfCube + 0.5, y - halfCube + 0.5, z - halfCube + 0.5)
+}
 
-    speed = rangeslider.value;
-    tetha += clock.getDelta() * speed/5;
-            
-    if(tetha > delta){
-        var tail = snake.shift();
-        var head = snake[snake.length - 1];
+const animate = () => {
+    freq = 1 / sliderVal.value
+    speedVal.innerHTML = `Speed: ${sliderVal.value}`
+    window.requestAnimationFrame(animate)
+    theta += clock.getDelta()
+    if (theta > freq) {
+        let tail = snake.shift(), head = snake[snake.length - 1]
+        
+        head.mesh.material.color.setHex(BodyColor)
+        tail.mesh.material.color.setHex(HeadColor)
 
-        head.mesh.material.color.setHex(BODY_COLOR);
-        tail.mesh.material.color.setHex(HEAD_COLOR);
-
-        direction = keysQueue.length > 0 ? keysQueue.pop(0) : direction;
-        var newPosition = new THREE.Vector3(head.mesh.position.x + direction.x + Math.sign(direction.x) * padding, head.mesh.position.y + direction.y + Math.sign(direction.y) * padding, head.mesh.position.z + direction.z + Math.sign(direction.z) * padding);
-        tail.setPosition(newPosition);
-                
-        snake.push(tail);
-        head = tail;
-
-        for(var i = snake.length - 2; i > -1; i--){
-            if(head.mesh.position.distanceTo(snake[i].mesh.position) < 1){
-                end = true;
-                break;
+        direction = keys.length > 0 ? keys.pop() : direction
+        const newDir = new THREE.Vector3(head.mesh.position.x + direction.x, head.mesh.position.y + direction.y, head.mesh.position.z + direction.z)
+        tail.setPosition(newDir)
+        snake.push(tail)
+        head = tail
+        for (let i = snake.length - 1; i > -1; i--) {
+            if (snake[i].mesh.position.distanceTo(black1.mesh.position) < 1) {
+                const nD = new THREE.Vector3(snake[i].mesh.position.x + 6 + direction.x, snake[i].mesh.position.y + 6 + direction.y, snake[i].mesh.position.z + 6 + direction.z)
+                snake[i].setPosition(nD)
             }
         }
-
-        if(end) {
-            restart();
+        for (let i = snake.length - 1; i > -1; i--) {
+            if (snake[i].mesh.position.distanceTo(black2.mesh.position) < 1) {
+                const nD = new THREE.Vector3(snake[i].mesh.position.x - 6 + direction.x, snake[i].mesh.position.y - 6 + direction.y, snake[i].mesh.position.z - 6 + direction.z)
+                snake[i].setPosition(nD)
+            }
         }
-
-        if(head.mesh.position.distanceTo(apple.mesh.position) < 1){
-            apple.setPosition(spawnAppleVector());
-            text.innerHTML = "Score: " + (++score);
-
-            snake.unshift(new Cube( new THREE.Vector3(snake[0].mesh.position.x, snake[0].mesh.position.y, snake[0].mesh.position.z), new THREE.MeshPhongMaterial( { color: 0x388e3c} ), scene));
+        for (let i = snake.length - 2; i > -1; i--) {
+            if (head.mesh.position.distanceTo(snake[i].mesh.position) < 1) {
+                finish = true
+                break
+            }
         }
-
-        if(head.mesh.position.x < -halfCubeSize){
-            head.mesh.position.x = halfCubeSize - 0.5;
+        if (finish) {
+            console.log('hello')
+            restart()
         }
-        else if(head.mesh.position.x > halfCubeSize){
-            head.mesh.position.x = -halfCubeSize + 0.5;
+        if (head.mesh.position.distanceTo(food.mesh.position) < 1) {
+            food.setPosition(foodLocation())
+            score++
+            scoreDiv.innerHTML = `Score: ${score}`
+            snake.unshift(new createCube(cube, new THREE.MeshPhongMaterial({ color: 0xffffff }), new THREE.Vector3(snake[0].mesh.position.x, snake[0].mesh.position.y, snake[0].mesh.position.z), scene, false))
         }
-        else if(head.mesh.position.y < -halfCubeSize){
-            head.mesh.position.y = halfCubeSize - 0.5;
+        if (head.mesh.position.x < -halfCube) {
+            head.mesh.position.x = halfCube - 0.5
         }
-        else if(head.mesh.position.y > halfCubeSize){
-            head.mesh.position.y = -halfCubeSize + 0.5;
+        else if (head.mesh.position.x > halfCube) {
+            head.mesh.position.x = -halfCube + 0.5
         }
-        else if(head.mesh.position.z < -halfCubeSize){
-            head.mesh.position.z = halfCubeSize - 0.5;
+        else if (head.mesh.position.y < -halfCube) {
+            head.mesh.position.y = halfCube - 0.5
         }
-        else if(head.mesh.position.z > halfCubeSize){
-            head.mesh.position.z = -halfCubeSize + 0.5;
+        else if (head.mesh.position.y > halfCube) {
+            head.mesh.position.y = -halfCube + 0.5
         }
-
-        if(head.mesh.position == blackHole1Pos)
-        {
-            head.mesh.position = blackHole2Pos;
+        else if (head.mesh.position.z < -halfCube) {
+            head.mesh.position.z = halfCube - 0.5
         }
-
-        tetha = 0;
+        else if (head.mesh.position.z > halfCube) {
+            head.mesh.position.z = -halfCube + 0.5
+        }
+        theta = 0
     }
-
-    renderer.render(scene, camera);
+    renderer.render(scene, camera)
 }
 
-document.addEventListener("keydown", function(e){
-    switch(e.key){
-        case 'q':
-            keysQueue.push(new THREE.Vector3(0,1,0));
-        break;
-        case 'a':
-            keysQueue.push(new THREE.Vector3(0,-1,0));
-        break;
-        case "ArrowDown":
-            keysQueue.push(new THREE.Vector3(0,0,1));
-        break;
-        case "ArrowUp":
-            keysQueue.push(new THREE.Vector3(0,0,-1));
-        break;
-        case "ArrowLeft":
-            keysQueue.push(new THREE.Vector3(-1,0,0));
-        break;
-        case "ArrowRight":
-            keysQueue.push(new THREE.Vector3(1,0,0));
-        break;
+init()
+animate()
+
+document.addEventListener("keydown", e => {
+    switch (e.key) {
+    case 'w':
+        keys.push(new THREE.Vector3(0, 1, 0))
+    break
+    case 's':
+        keys.push(new THREE.Vector3(0, -1, 0))
+    break
+    case "ArrowDown":
+        keys.push(new THREE.Vector3(0, 0, 1))
+    break
+    case "ArrowUp":
+        keys.push(new THREE.Vector3(0, 0, -1))
+    break
+    case "ArrowLeft":
+        keys.push(new THREE.Vector3(-1, 0, 0))
+    break
+    case "ArrowRight":
+        keys.push(new THREE.Vector3(1, 0, 0))
+    break
     }
-});
+})
+    
+window.addEventListener('resize', () => {
+    width = window.innerWidth
+    height = window.innerHeight
+    renderer.setSize(width, height)
+    camera.aspect(width / height)
+    camera.updateProjectionMatrix()
+})
